@@ -18,7 +18,7 @@ Some extra libraries are needed to run the functions in remi.R. These are detail
 * **Denis Mongin** 
 * **Adriana Uribe**
 * **Julien Gateau**
-* **Baris Gencer*
+* **Baris Gencer**
 * **Boris Cheval**
 * **Stéphane Cullati**
 * **Delphine Courvoisier**
