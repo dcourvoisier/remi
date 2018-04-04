@@ -8,7 +8,7 @@ Either copy the code directly from the remi.R file into a new script in RStudio 
 
 so that R loads the file into your workspace and that you are able to use the functions inside the file.
 
-### Prerequisites
+## Prerequisites
 
 RStudio is needed to run the code presented. 
 Some extra libraries are needed to run the functions in remi.R. These are detailed at the beginning of the file itself and thus, when running the code through the "source()" command mentioned above, they will be automatically loaded.
