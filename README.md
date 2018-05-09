@@ -1,5 +1,5 @@
 # remi_smmr
-This repository presents a first order return to equilibrium model following multiple inputs and it is a companion of the paper from Mongin et al. (2018). For a detailed description of the model and the functions presented on the file, please visit the wiki.
+This repository presents the "Return to equilibrium during Multiple Inputs" model and it is a companion of the paper from Mongin et al. (2018). For a detailed description of the model and the functions presented on the file, please visit the wiki.
 
 ## Getting Started
 
@@ -10,7 +10,7 @@ so that R loads the file into your workspace and that you are able to use the fu
 
 ## Prerequisites
 
-RStudio or R are needed to run the code presented. 
+R is needed to run the code presented. 
 Some extra libraries are needed to run the functions in remi_smmr.R. These are detailed at the beginning of the file itself and thus, when running the code through the "source()" command mentioned above, they will be automatically loaded.
 
 ## Authors
