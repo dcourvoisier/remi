@@ -2,7 +2,7 @@
 title: "Examples"
 author: "AU"
 date: "11 mai 2018"
-output: html_document
+output: github_document
 ---
 
 ## Downloading of necessary libraries
