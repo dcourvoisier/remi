@@ -70,9 +70,7 @@ Derivative calculation with uncorrelated errors
 Use of the Gold function for derivative calculation in the case of a simple quadratic function. It will be demonstrated that "holes" can be generated on the data and the function still manages to find the derivatives. 
 The function chosen is:
 *x*(*t*)=*t*<sup>2</sup>
- And its first and second derivatives:
-x' = 2t
-x'' = 2
+ And its first and second derivatives: x' = 2t, x'' = 2
 
 ``` r
 time <- c(1:500)/100
