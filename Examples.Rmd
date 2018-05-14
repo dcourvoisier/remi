@@ -1,0 +1,262 @@
+---
+title: "Examples"
+author: "AU"
+date: "11 mai 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Downloading of necessary libraries
+```{r}
+setwd('yourworkingdirectory')
+source('remi_smmr.R')
+library('ggplot2')
+```
+
+## excitation_function
+# Random excitation pulses generation
+
+Generation of three random pulses with amplitues 1, 5 and 10, with duration of 2,4 and 5 seconds with a total of Nf*precision=100 points of measurement in 100 seconds, with a minimum spacing of 20 seconds between pulses. 
+```{r}
+
+exc <- excitation_function (amplitude = c(1,5,10), 
+                            Nexc = 3, 
+                            duration = c(2,4,5), 
+                            Nf = 100, 
+                            tmax = 100,
+                            minspacing = 20,
+                            precision = 10)
+
+plot(exc$data$t,exc$data$y, xlab = "Time (s)", ylab = "Excitation (unit)")
+```
+
+## calculate_gold
+# Derivative calculation with uncorrelated errors
+
+Use of the Gold function for derivative calculation in the case of a simple quadratic function. It will be demonstrated that "holes" can be generated on the data and the function still manages to find th derivatives.
+The equation taken as an example is similar to the base equation of the model:
+$$\dot{x} = \frac{dx}{dt} $$
+The function chosen is:
+$$ x(t) = t^2$$
+And its first and second derivatives:
+$$ \dot{x} = 2t$$
+$$\ddot{x} = 2$$
+
+```{r}
+time <- c(1:500)/100
+signal <- time^2
+result <- calculate_gold(TimeSeries = signal, time = time, Embedding = 5)
+#Puttin result data into a data table for easier plotting with ggplot
+resulttable <-setDT(list(time=time,signal=signal,dtime=result$dtime,signal_rollmean=result$dsignal[,1],first_derivative=result$dsignal[,2],second_derivative=result$dsignal[,3]))
+```
+
+```{r}
+ggplot( data = resulttable ) +
+theme_light() +
+  geom_line(aes(time,signal, colour = "Signal"))+
+  geom_point(aes(dtime,signal_rollmean, colour = "Signal rollmean in embedding points"))+
+  geom_point(aes(dtime,first_derivative, colour = "First derivative"))+
+  geom_point(aes(dtime,second_derivative, colour = "Second derivative"))+
+  labs(x = "Time (unit)",
+           y = "Signal (unit)",
+           colour = "")
+```
+
+```{r}
+#Generating holes in input signal
+time <- c(1:50)/10
+time <- time[sort(sample(seq(time), 0.6*length(time),replace = F))]
+signal <- time^2
+result <- calculate_gold(TimeSeries = signal, time = time, Embedding = 5)
+resulttable <-setDT(list(time=time,signal=signal,dtime=result$dtime,signal_rollmean=result$dsignal[,1],first_derivative=result$dsignal[,2],second_derivative=result$dsignal[,3]))
+```
+
+```{r}
+ggplot( data = resulttable ) +
+theme_light() +
+  geom_line(aes(time,signal, colour = "Signal"))+
+  geom_point(aes(dtime,signal_rollmean, colour = "Signal rollmean in embedding points"))+
+  geom_point(aes(dtime,first_derivative, colour = "First derivative"))+
+  geom_point(aes(dtime,second_derivative, colour = "Second derivative"))+
+  labs(x = "Time (unit)",
+           y = "Signal (unit)",
+           colour = "")
+```
+
+## remi_generate_order1
+# Generation of the solution to the first order differential equation (convolution)
+
+```{r}
+exc <- excitation_function(amplitude = 10,
+                            Nexc = 3, 
+                            duration = 5, 
+                            Nf = 100, 
+                            minspacing = 1,
+                            precision = 10)
+
+soleq <- remi_generate_order1(dampingTime = 30,
+                              inputvec = exc$y,
+                              inputtim = exc$t,
+                              A = 1)
+excdt <- setDT(exc)
+soleqdt <- setDT(soleq)
+```
+
+```{r}
+ggplot( ) +
+theme_light() + theme(legend.position = "top") +
+  geom_point(data = excdt, aes(t,y, colour = "Excitation (unit)"))+
+  geom_point(data = soleqdt,aes(t,y, colour = "Convolution: solution to differential equation (unit)"))+
+  labs(x = "Time (unit)",
+           y = "Signal (unit)",
+           colour = "")
+```
+
+## simulation_generate_order1
+# Generation of several signals for several individuals that are solution to the first order differential equation
+
+Generating simulation data for 4 individuals, with a damping time of 10 for an excitation vector formed by 3 excitations of amplitude 1 and duration 10 s distributed randomnly and with a sample of 200 points, with a minimum spacing between pulses of 20 s and with NO NOISE.  That is, the signal follows exactly the theoretical solution of the differential equation and there is no variation of the damping time, the excitation coefficient and the equilibrium value across individuals:
+
+
+```{r}
+# Generation of signals with no noise
+mydata <- simulation_generate_order1(Nindividuals = 4, 
+                                    dampingTime = 10, 
+                                    amplitude = 1, 
+                                    Nexc = 3, 
+                                    duration = 10, 
+                                    Nf = 200,
+                                    tmax = 100,
+                                    minspacing = 20,
+                                    precision = 100,
+                                    interNoise = 0, 
+                                    intraNoise = 0)
+```
+
+If we add the following command we will be able to visualize the structure of mydata (the command "head" allows t visualize the first lines of the table, entering "mydata" directly will allow you to see the first and last lines).
+
+```{r}
+head(mydata)
+```
+
+Where:
+ID is the identifier of the individual
+excitation is the excitation signal
+Dampedsignalraw is the signal without noise
+Dampedsignal is the signal with noise 
+timecol is the time column generated.
+
+Plotting data:
+```{r}
+ggplot( data = mydata$data ) +
+  geom_point(aes(timecol,Dampedsignalraw, colour = "Signal-no noise"))+
+  geom_point(aes(timecol,Dampedsignal, colour = "Signal with 0% intra-noise"))+
+  geom_line(aes(timecol,excitation,colour = "Excitation"))+
+  facet_wrap(~ID)+
+  labs(x = "Time (unit)",
+           y = "Signal (unit)",
+           colour = "")
+```
+
+Using the same function, this time adding a 20% intra-individual noise and a 40% inter-individual noise:
+```{r}
+# Generation of signals with intra and inter-noise
+mydata <- simulation_generate_order1(Nindividuals = 4, 
+                                    dampingTime = 10, 
+                                    amplitude = 1, 
+                                    Nexc = 3, 
+                                    duration = 10, 
+                                    Nf = 200,
+                                    tmax = 100,
+                                    minspacing = 20,
+                                    precision = 100,
+                                    interNoise = 0.4, 
+                                    intraNoise = 0.2)
+```
+Plotting data:
+```{r}
+ggplot( data = mydata$data ) +
+  geom_point(aes(timecol,Dampedsignalraw, colour = "Signal-no noise"))+
+  geom_point(aes(timecol,Dampedsignal, colour = "Signal with 20% intra-noise"))+
+  geom_line(aes(timecol,excitation,colour = "Excitation"))+
+  facet_wrap(~ID)+
+  labs(x = "Time (unit)",
+           y = "Signal (unit)",
+           colour = "")
+```
+
+## remi_analyse_order1
+# Study of input signals to indicate how well it fits a first order differential equation through multilevel regression
+
+Next, the signals with noise presented above will be analyzed in order to verify that the damping coefficient was the one introduced in the simulation function and that the estimated signal generated matches the original one:
+
+```{r}
+result <- remi_analyse_order1(UserData = mydata$data,
+                                ID = "ID",
+                                Input="excitation",
+                                Time="timecol",
+                                signalcolumn = "Dampedsignal",
+                                Embedding = 5)
+```
+
+Now let's take a look to the different parts of the result. As it was mentioned before, the first table contains the original data with some columns added. These columns contain intermediate variables used for the preparation of the regression:
+```{r}
+head(result$data)
+```
+
+Where:
+Dampedsignal_rollmean contains the roll mean (moving average) values of the input signal in embedding points. As it can be seen, the first line contains an NA because the convolution takes the points to the left and thus the first roll means can't be calculated as there are no points to the left of these.
+
+Dampedsignal_derivate1 contains the first derivate of Dampedsignal, calculated by using the calculate_gold function. The first line contains an NA for the same reason as the previous column.
+
+timecol_derivate contains the values of time in which the derivative has been evaluated.
+
+excitation_rolled contains the roll mean of the excitation signal in embedding points.
+
+Dampedsgnal_estimated contains the values of the estimated signal generated by using the remi_generate_order1 function and using the coefficients calculated for each individual (see next table).
+
+```{r}
+result$resultID
+```
+
+Where for each individual we have:
+
+Excitation_exccoeff which is the coefficient of the excitation term. 
+
+Dampedsignal_dampingTime which is the inverse of the damping coefficient. 
+
+Dampedsignal_eqvalue which is the equilibrium value.
+
+(for more details, visit the wiki pages)
+
+Finally, the third table contains the average of these coefficients for all the individuals:
+
+```{r}
+result$resultmean
+```
+ 
+And, if we want to see in detail the results of the regression, the following command applies:
+
+```{r}
+result$regression
+```
+
+ 
+Where we have a summary of the random and fixed effects and the residuals calculated by the function lmer. 
+Apart from these indicators, if we graphically wish to verify how the estimated signal fits the initial signal, we call ggplot once again:
+
+```{r}
+ggplot( data = result$data ) +
+  geom_point(aes(timecol,Dampedsignal_estimated, colour = "Estimated signal"))+
+  geom_line(aes(timecol,Dampedsignalraw, colour = "Signal-no noise"))+
+  geom_point(aes(timecol,Dampedsignal, colour = "Signal-20% intra-noise"))+
+  geom_line(aes(timecol,excitation,colour = "Excitation"))+
+  facet_wrap(~ID)+
+  labs(x = "Time (unit)",
+           y = "Signal (unit)",
+           colour = "")
+```
+
