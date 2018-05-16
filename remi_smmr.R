@@ -216,9 +216,6 @@ remi_analyse_order1 <- function(UserData,
   #Verifying column names repeated in data table.
   if(any(duplicated(colnames(Data)))){stop("Input datatable contains duplicated column names. Please correct these in order to launch the analysis function.\n")}
   
-  #Converting data if columns are of type "factor" or "string"
-  Data[, lapply(.SD, function(x){as.numeric(as.character(x));x}), by=ID]
-  
   #If ID,Input,Time,signalcolumn are not strings containing the name of columns in "Data", stop the function
   if(is.null(ID)|(!is.null(ID) && !is.character(ID))){stop("ID should be a string containing the name of the column in Data that contains the individual identifier.\n")}
   if(!is.null(Input) && !is.character(Input)){stop("Input should be a string containing the name of the column in Data that contains the excitation.\n")}
@@ -275,10 +272,10 @@ remi_analyse_order1 <- function(UserData,
   setkey(ResultID,ID) #sorts the data table by ID
     
     if(noinput){ # if there is no excitation signal
-      model <- tryCatch({ lmer(paste0( signalcolumn,"_derivate1 ~ ",signalcolumn,"_rollmean + (1 + ",signalcolumn,"_rollmean |ID)"),
+      model <- tryCatch({lmer(paste0(signalcolumn,"_derivate1 ~ ",signalcolumn,"_rollmean + (1 + ",signalcolumn,"_rollmean |ID)"),
                                data=Data, REML=TRUE,
-                               control = lmerControl(calc.derivs = FALSE,optimizer = "nloptwrap"))}, error=function(e) e)}
-    else{ # if there is an excitation signal
+                               control = lmerControl(calc.derivs = FALSE,optimizer = "nloptwrap"))}, error=function(e) e)
+    }else{ # if there is an excitation signal
       model <- tryCatch({ lmer(paste0(signalcolumn,"_derivate1 ~ ",signalcolumn,"_rollmean + ",Input,"_rollmean + (1 + ",Input,"_rollmean + ",signalcolumn,"_rollmean |ID)"),
                                data=Data, REML=TRUE,
                                control = lmerControl(calc.derivs = FALSE,optimizer = "nloptwrap"))}, error=function(e) e)}
@@ -305,7 +302,7 @@ remi_analyse_order1 <- function(UserData,
       # Damping time in ResultID ------------------------------------------------
       
       
-      ResultID[, c(paste0(signalcolumn,"_dampingTime")) := -1L/(summary$coefficients[paste0(signalcolumn,"_rollmean"),"Estimate"] + random$ID[.GRP,paste0(signalcolumn,"_rollmean")])] 
+      ResultID[, c(paste0(signalcolumn,"_dampingTime")) := -1L/(summary$coefficients[paste0(signalcolumn,"_rollmean"),"Estimate"] + random$ID[.GRP,paste0(signalcolumn,"_rollmean")]), by = ID] 
       
       
       # Extract the intercept (equilbrium value) calculated for each individual (present in random, regression table)
