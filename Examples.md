@@ -8,7 +8,7 @@ Downloading of necessary libraries
 
 ``` r
 #setwd('yourworkingdirectory')
-source('remi_smmr2.R')
+source('remi_smmr.R')
 ```
 
     ## 
