@@ -101,11 +101,10 @@ calculate_gold <-  function(TimeSeries,
 # Excitation signal generation.
 excitation_function = function(amplitude = 1,
                                Nexc = 1,
-                               duration = 10,
-                               Nf = 100,
-                               tmax = 100,
-                               minspacing = 10,
-                               precision = 100)
+                               duration = 2,
+                               deltat = 0.1,
+                               tmax = 10,
+                               minspacing = 1)
 {
   #Error management
   if (any(duration<=0)|any(amplitude==0)|Nexc<=0) {
@@ -125,12 +124,9 @@ excitation_function = function(amplitude = 1,
     amplitude<-amplitude[1:Nexc]
     warning("The number of excitations Nexc was higher than the amplitudes defined. The values from the vector were repeated.\n")
   }
-  if(precision<1){
-    warning("The precision should be greater or equal to 1.\n")
-  }
+
   if(tmax<(sum(duration)+minspacing)*Nexc){stop("Non valid parameters. tmax should be greater than (duration+minspacing)*Nexc.\n")}
   
-  Npoints=Nf*precision
   if (length(duration)==1) {dur<-duration*Nexc} #If it's a scalar, it assigns the value directly. If it is not, it takes the value from the vector
   #at the position of the correponding excitation
   else {dur<-sum(duration)}
@@ -154,7 +150,8 @@ excitation_function = function(amplitude = 1,
         else{tal<-sample(minspacing:trest,1,replace=T)}
       }
     }
-    sp<-rep(c(0,1),c(tal*Npoints/tmax,dur*Npoints/tmax)) #simple unitary pulse
+    Nf<-tmax/deltat+1
+    sp<-rep(c(0,1),c(tal/deltat+1,dur/deltat+1)) #simple unitary pulse
     cumt<-cumt+tal+dur #cumulated time
     
     #Generation of amplified simple pulse
@@ -172,25 +169,18 @@ excitation_function = function(amplitude = 1,
   }
   
   #Verify E vector length
-  if (length(E)<Npoints) {
-    E<-append(E,rep(0,Npoints-length(E))) #If the length is smaller than Npoints, fill with 0
+  if (length(E)<Nf) {
+    E<-append(E,rep(0,Nf-length(E))) #If the length is smaller than Nf, fill with 0
   } 
   else{
-    E<-E[1:Npoints]
-    warning("Due to input parameters introduced, vector size was larger than Npoints and was cut to this value.\n")
+    E<-E[1:Nf]
+    warning("Due to input parameters introduced, vector size was larger than Nf and was cut to this value.\n")
   }
   #Generation of time vector
-  tim<-seq(0,tmax,tmax/Npoints)
-  rawdata<-list(y=E,t=head(tim,-1))
-  
-  #Sampling data to have Nf points in the end
-  teq<-tmax/Nf #It is maximum time/number of intermediate points taken to build the pseudo continuous function
-  intervals<-rep(teq,(Nf-1))
-  E<-E[tim %in% c(0 + cumsum(c(0, intervals)))] #Keeping only values from data table that are in the time intervals chosen
-  tim<-tim[tim %in% c(0 + cumsum(c(0, intervals)))]
+  tim<-seq(0,tmax,deltat)
   
   data<-list(y=E,t=tim)
-  return(list(rawdata= rawdata,data=data))    
+  return(data)    
   
 }
 
@@ -244,7 +234,6 @@ remi_analyse_order1 <- function(UserData,
   
   #If in the data left, there are some NA values in the excitation vector, set them to zero.
   #This is to avoid loosing data from signal and time vectors, as sometimes when people fill in the signal data they put NA to mean no excitation, thus 0.
-  na.to.0<-function(x){x[is.na(x)]<-0; x} 
   Data[is.na(get(Input))]<-0
   
   #Calculation of the signal rollmean and first derivative of the signal column
@@ -324,9 +313,8 @@ remi_analyse_order1 <- function(UserData,
                # if there is a damping time that has been calculated and if it is greater than 0 (decreasing exponential)
                #and if there is an excitation coefficient (excitation term was found in the inputs)
                if(!noinput){ #There is an excitation signal as input
-                 remi_generate_order1(ResultID[.GRP, get(paste0(signalcolumn,"_dampingTime"))],get(Input)*(summary$coefficients[paste0(Input,"_rollmean"),"Estimate"] + random$ID[.GRP,paste0(Input,"_rollmean")]),get(Time),max(get(Time))/length(get(Time)))$y+
+                 remi_generate_order1(ResultID[.GRP, get(paste0(signalcolumn,"_dampingTime"))],get(Input)*(summary$coefficients[paste0(Input,"_rollmean"),"Estimate"] + random$ID[.GRP,paste0(Input,"_rollmean")]),get(Time))$y+
                  ResultID[.GRP, get(paste0(signalcolumn,"_eqvalue"))]}
-     
                else{ #There is no excitation signal as input
                "There is no excitation provided, thus signal wasn't generated."}}
              else{NaN}, by = ID]}
@@ -347,8 +335,7 @@ remi_analyse_order1 <- function(UserData,
 #Generation of the solution to the first order differential equation
 remi_generate_order1 = function(dampingTime,
                                 inputvec,
-                                inputtim,
-                                A)
+                                inputtim)
 {
   #Error management
   #If inputvec is a scalar, the function warns the user that it should be a vector containing the values of the excitation signal
@@ -361,9 +348,8 @@ remi_generate_order1 = function(dampingTime,
   green <- exp(-1/dampingTime*(inputtim-inputtim[1])) #Calculation of green function values.Inputtim vector is forced to start in 0
   
   #as convolution doesn't take time into account, only number of points, a coefficient is needed to reduce amplitude
-  convol <- A*rev(convolve(rev(green),inputvec,type = "open")) 
+  convol <- (max(inputtim)-min(inputtim))/(length(inputtim)-1)*rev(convolve(rev(green),inputvec,type = "open")) 
   convol <- convol[1:length(inputvec)]
-  
   return(list(y=convol,t=inputtim))              #Returns the result of the convolution in the points corresponding to the excitation time vector.
 }
 
@@ -376,20 +362,19 @@ simulation_generate_order1 = function(Nindividuals = 1,
                                       amplitude = 1, 
                                       Nexc = 1,
                                       duration = 10, 
-                                      Nf = 100, 
-                                      tmax,
+                                      deltatf=1,
+                                      tmax=10,
                                       minspacing = 10, 
-                                      precision = 100,
                                       interNoise = 0,
                                       intraNoise = 0)
 {
-  if(precision<(tmax*10/dampingTime/Nf)){warning("Precision chosen is too small regarding damping time. 
-                                                 Dampingtime/timestep should be greater or equal to 10 in order to avoid sampling errors 
-                                                 from appearing.This is only a warning, the result will be generated but beware sampling 
-                                                 errors may appear. If you want to avoid these please modify parameters accordingly.\n")}
-  
-  Npoints<-Nf*precision
-  
+  #Assuming that dampingTime/deltat>=10.
+  if (dampingTime<10) deltat=dampingTime/10
+  else deltat=0.01 #Internal parameter to generate pseudo-continuous function
+ 
+  if((deltatf %% deltat) != 0){stop("Invalid deltatf, please modify.\n")}
+ 
+  Npoints<-tmax/deltat+1
   # Generate simulation data for a given excitation and damping time
   # Generates ID column (ID being the individual number)
   # Creates a data table with ID being the first column containing as many lines per individual as time points marked in Npoints
@@ -398,8 +383,8 @@ simulation_generate_order1 = function(Nindividuals = 1,
   
   #Add to that data table an "excitation" column, containing the values of the excitation signal. 
   #Creates a new excitation signal for each individual
-  Data[,excitation := excitation_function(amplitude,Nexc,duration,Nf,tmax,minspacing,precision)$rawdata$y,by = ID]
-  Data[,timecol := excitation_function(amplitude,Nexc,duration,Nf,tmax,minspacing,precision)$rawdata$t,by = ID] 
+  Data[,excitation := excitation_function(amplitude,Nexc,duration,deltat,tmax,minspacing)$y,by = ID]
+  Data[,timecol := excitation_function(amplitude,Nexc,duration,deltat,tmax,minspacing)$t,by = ID] 
   
   #Creates a damping time vector by taking dampingTime input value and adding the interNoise in a normal distribution
   #Contains as many elements as individuals
@@ -413,8 +398,7 @@ simulation_generate_order1 = function(Nindividuals = 1,
   
   #Creates the signals for each individual taking the damping time for that individual from dampingTimevec
   #Dampedsignalraw is the signal WITHOUT NOISE
-  Data[,Dampedsignalraw := remi_generate_order1 (dampingTimevec[.GRP],excitation,timecol,tmax/Npoints)$y, by = ID ] 
-  
+  Data[,Dampedsignalraw := remi_generate_order1 (dampingTimevec[.GRP],excitation,timecol)$y, by = ID ] 
   
   #Creates the signal for each individual with intra noise
   #In order to avoid adding an increased intra noise that will "grow" with each new pulse of the excitation signal, first
@@ -424,19 +408,16 @@ simulation_generate_order1 = function(Nindividuals = 1,
   #be necessary to pick the maximum of the amplitude and the excitation
   if(length(amplitude)>1){amp<-max(amplitude)}
   else {amp<-amplitude}
-  if(length(duration)>1){dur<-max(duration)*(Npoints/tmax)} #As done in the excitation function
-  else{dur<-duration*(Npoints/tmax)}
-  
-  Data[,amplitudenorm := remi_generate_order1(dampingTimevec[.GRP],rep(c(amp,0),c(dur,(length(excitation)-dur))),timecol,tmax/Npoints)$y, by = ID ]
+  if(length(duration)>1){dur<-max(duration)/deltat+1} #As done in the excitation function
+  else{dur<-duration/deltat+1}
+  Data[,amplitudenorm := remi_generate_order1(dampingTimevec[.GRP],rep(c(amp,0),c(dur,(length(excitation)-dur))),timecol)$y, by = ID ]
   Data[,Dampedsignal := Dampedsignalraw + rnorm(.N, mean = 0, sd = intraNoise*max(abs(amplitudenorm))), by = ID ] 
   
   #Returning rawdata
   RawData<-copy(Data)
   
-  #Selecting equally spaced data so to have Nf points in the end
+  #Selecting equally spaced data with deltatf
   #definition of time step for equally spaced values. 
-    teq<-tmax/Nf #It is maximum time/number of intermediate points taken to build the pseudo continuous function
-    intervals<-rep(teq,(Nf-1))
-    Data<-Data[timecol %in% c(0 + cumsum(c(0, intervals))), .SD,by = ID] #Keeping only values from data table that are in the time intervals chosen
+  Data<-Data[timecol %in% seq(0,tmax,deltatf), .SD,by = ID] #Keeping only values from data table that are in the time intervals chosen
   return(list(rawdata=RawData[,!"amplitudenorm",with = FALSE],data=Data[,!c("amplitudenorm"),with = FALSE]))
 }
