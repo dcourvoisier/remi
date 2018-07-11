@@ -6,8 +6,6 @@ library(lme4) # for the calculation of regressions
 
 
 # calculate_gold ----------------------------------------------------------
-
-
 # GOLD function for derivative calculation
 calculate_gold <-  function(TimeSeries,
                             time,
@@ -96,9 +94,7 @@ calculate_gold <-  function(TimeSeries,
 }
 
 # excitation_function -----------------------------------------------------
-
-
-# Excitation signal generation.
+# excitation signal generation.
 excitation_function = function(amplitude = 1,
                                Nexc = 1,
                                duration = 2,
@@ -107,87 +103,51 @@ excitation_function = function(amplitude = 1,
                                minspacing = 1)
 {
   #Error management
-  if (any(duration<=0)|any(amplitude==0)|Nexc<=0) {
+  if (any(duration <= 0) | any(amplitude == 0) | Nexc <= 0){
     stop("Invalid input parameters. At least one excitation must be defined. Duration and Nexc must be greater than 0.Amplitude must be different from 0.\n")
   }
-  if (Nexc<length(duration)|Nexc<length(amplitude)) {
+  if (Nexc < length(duration) | Nexc < length(amplitude)){
     warning("The number of excitations Nexc is smaller than the number of elements in amplitude and duration. Only the first elements of these vectors were considered.\n")
   }
   
-  if (Nexc>length(duration) && length(duration)>1) {
-    duration<-rep(duration,ceiling(Nexc/length(duration)))
-    duration<-duration[1:Nexc]
-    warning("The number of excitations Nexc was higher than the durations defined. The values from the vector were repeated.\n")
-  }
-  if (Nexc>length(amplitude) && length(amplitude)>1) {
-    amplitude<-rep(amplitude,ceiling(Nexc/length(amplitude)));
-    amplitude<-amplitude[1:Nexc]
-    warning("The number of excitations Nexc was higher than the amplitudes defined. The values from the vector were repeated.\n")
-  }
-
-  if(tmax<(sum(duration)+minspacing)*Nexc){stop("Non valid parameters. tmax should be greater than (duration+minspacing)*Nexc.\n")}
-  
-  if (length(duration)==1) {dur<-duration*Nexc} #If it's a scalar, it assigns the value directly. If it is not, it takes the value from the vector
-  #at the position of the correponding excitation
-  else {dur<-sum(duration)}
-  
-  trest<-tmax-dur-minspacing*(Nexc-1) #at the beginning, calculates the time left (to calculate random time from it) is tmax-total pulse duration - total minspacing duration
-  cumt<-0 #cumulated time initialized to 0
-  
-  for (i in 1:Nexc)
-  {
-    #Generation of a single unitary pulse (single pulse with amplitude=1)
-    if (length(duration)==1) {dur<-duration;durleft<-dur*(Nexc-i)} #If it's a scalar, it assigns the value directly. If it is not, it takes the value from the vector
-    #at the position of the correponding excitation
-    else {dur<-duration[i];durleft<-sum(duration[(i+1):Nexc])}
-    
-    tal<-tmax #Random time is initialized so that it enters the while loop the first time
-    
-    while(tal>trest){ #While the random time coming from the sample is greater than the time left before tmax
-      if(i==1){tal<-sample(0:trest,1,replace=T)}
-      else{
-        if(trest==minspacing){tal<-minspacing}
-        else{tal<-sample(minspacing:trest,1,replace=T)}
-      }
+  if (Nexc > length(duration)){
+    if (length(duration) > 1){
+      warning("The number of excitations Nexc was higher than the durations defined. The values given for duration were repeated.\n")
     }
-    Nf<-tmax/deltat+1
-    sp<-rep(c(0,1),c(tal/deltat+1,dur/deltat+1)) #simple unitary pulse
-    cumt<-cumt+tal+dur #cumulated time
-    
-    #Generation of amplified simple pulse
-    if (length(amplitude)==1) {amp<-amplitude} #Same as for duration.
-    else {amp<-amplitude[i]}
-    sp<-sp*amp
-    
-    #Append calculated single pulse to result vector
-    if(i==1){E<-sp}
-    else{E<-append(E,sp)}
-    
-    #Calculating the time left so that a new sample of random time can be taken
-    trest<-tmax-cumt-durleft-minspacing*(Nexc-i-1)
-    
+    duration <- rep(duration, ceiling(Nexc/length(duration)))
+    duration <- duration[1:Nexc]
   }
+  if (Nexc > length(amplitude)){
+    if (length(amplitude) > 1){
+      warning("The number of excitations Nexc was higher than the amplitudes defined. The values given for amplitude were repeated.\n")
+    }
+    amplitude <- rep(amplitude,ceiling(Nexc/length(amplitude)));
+    amplitude <- amplitude[1:Nexc]
+  }
+  if(tmax < (sum(duration) + minspacing * (Nexc-1))){stop("Non valid parameters. tmax should be greater than (duration + minspacing) * Nexc.\n")}
   
-  #Verify E vector length
-  if (length(E)<Nf) {
-    E<-append(E,rep(0,Nf-length(E))) #If the length is smaller than Nf, fill with 0
-  } 
-  else{
-    E<-E[1:Nf]
-    warning("Due to input parameters introduced, vector size was larger than Nf and was cut to this value.\n")
-  }
   #Generation of time vector
-  tim<-seq(0,tmax,deltat)
+  tim <- seq(0, tmax, deltat)
   
-  data<-list(y=E,t=tim)
+  found <- FALSE #indicates final distribution of pulses has not been found yet
+  while (!found){
+    tal <- c(sort(sample(1:tmax, Nexc, replace = F)), tmax) #initial sampling. tal is a vector of time values in which the pulses will start
+    if(all(diff(tal) >= (minspacing + duration))){found <- TRUE} #means all the pulses fitted and we exit the loop
+  }
+  
+  #Generation of excitation
+  E <- rep(0,length(tim)) #initialize excitation vector with 0
+  
+  for (i in 1:Nexc){
+    E[(tim >= tal[i]) & (tim <= (tal[i] + duration[i]))] <- amplitude[i] #fill vector with the amplitudes for the corresponding pulse in the lapses
+    #of time defined by tal and tal+duration
+  }
+  
+  data <- list(y = E, t = tim)
   return(data)    
-  
 }
 
-
 # remi_analyse_order1 -----------------------------------------------------
-
-
 # remi first order analysis function
 remi_analyse_order1 <- function(UserData, 
                                 ID = NULL, 
@@ -332,7 +292,7 @@ remi_analyse_order1 <- function(UserData,
 
 
 # remi_generate_order1 ----------------------------------------------------
-#Generation of the solution to the first order differential equation
+# Generation of the solution to the first order differential equation
 remi_generate_order1 = function(dampingTime,
                                 inputvec,
                                 inputtim)
@@ -355,7 +315,6 @@ remi_generate_order1 = function(dampingTime,
 
 
 # simulation_generate_order1 ----------------------------------------------
-
 # Simulation of various individual signals with intra and inter noise
 simulation_generate_order1 = function(Nindividuals = 1, 
                                       dampingTime, 
